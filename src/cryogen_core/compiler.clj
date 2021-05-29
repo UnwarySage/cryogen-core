@@ -10,6 +10,7 @@
             [text-decoration.core :refer :all]
             [cryogen-core.io :as cryogen-io]
             [cryogen-core.config :refer [resolve-config]]
+            [cryogen-core.css :as css]
             [cryogen-core.klipse :as klipse]
             [cryogen-core.markup :as m]
             [cryogen-core.rss :as rss]
@@ -80,6 +81,22 @@
         (cryogen-io/path content-root root)
         (m/exts mu)
         ignored-files))))
+
+(defn- find-css-entries
+  "Returns a list of files in the content directory, based on the registered css-processor.
+   it will first look for files the processor can hadndle in the processors preferred directory,
+   but will fallback to searching content-root"
+  [root processor ignored-files]
+  (let [css-assets (cryogen-core.io/find-assets 
+                    (cryogen-core.io/path root (css/dir processor))
+                   (m/exts processor)
+                   ignored-files)]
+    (if (seq? css-assets)
+      css-assets
+      (cryogen-core.io/find-assets
+       (cryogen-core.io/path content-root)
+       (m/exts processor)
+       ignored-files))))
 
 (defn find-posts
   "Returns a list of markdown files representing posts under the post root."
@@ -535,6 +552,13 @@
                                        :selmer/context  (cryogen-io/path "/" blog-prefix "/")
                                        :uri             uri}))))))
 
+(defn compile-css-entries! [{:keys [css-dir css-outut-path] :as config}]
+  (let [processor (css/processor)]
+    (if processor
+      (css/processor processor css-dir css-outut-path config)
+      (println (blue "No CSS processor registered.")))))
+
+
 (defn tag-posts
   "Converts the tags in each post into links"
   [posts config]
@@ -657,8 +681,8 @@
 
      (when-not inc-compile?
        (cryogen-io/wipe-public-folder keep-files))
-     (println (blue "compiling sass"))
-     (sass/compile-sass->css! config)
+     (println (blue "compiling CSS"))
+     (compile-css-entries! config)
      (println (blue "copying theme resources"))
      (cryogen-io/copy-resources-from-theme config)
      (println (blue "copying resources"))
@@ -705,7 +729,7 @@
 
   ;; Build and copy only styles & theme
   (do
-    (sass/compile-sass->css! *config)
+    (compile-css-entries!)
     (cryogen-io/copy-resources-from-theme *config))
 
   ;; Build a single page (quicker than all)
