@@ -17,6 +17,19 @@
     uri
     (config (-> k (name) (string/replace #"-uri$" "") (keyword)))))
 
+(defn sass-or-post-switch
+  "Given a config, looks for what process should handle it CSS compilation,
+   and sets up the expected values for later processing."
+  [{:keys [css-src css-compiler] :as config}]
+  (if css-compiler ;; maybe there is no css to compile
+    (cond (= :sass css-compiler)
+          (assoc config
+                 :sass-src css-src)
+          (= :post-css css-compiler)
+          (assoc config
+                 :post-css-src css-src))
+    config))
+
 (defn process-config
   "Reads the config file"
   [config]
@@ -27,12 +40,13 @@
                      (update-in [:public-dest] (fnil identity "public"))
                      (update-in [:recent-posts] (fnil identity 3))
                      (update-in [:archive-group-format] (fnil identity "yyyy MMMM"))
-                     (update-in [:sass-src] (fnil identity ["css"]))
+                     (update-in [:css-src] (fnil identity ["css"]))
                      (update-in [:sass-path] (fnil identity "sass"))
                      (update-in [:posts-per-page] (fnil identity 5))
                      (update-in [:blocks-per-preview] (fnil identity 2))
                      (assoc :page-root-uri (root-uri :page-root-uri config)
-                            :post-root-uri (root-uri :post-root-uri config)))
+                            :post-root-uri (root-uri :post-root-uri config))
+                     (sass-or-post-switch))
           check-overlap (fn [dirs]
                           (some #(subpath? % (:public-dest config)) dirs))]
       
@@ -54,6 +68,18 @@
     (and (not override) (every? sequential? vs)) (apply into vs)
     :else (last vs)))
 
+
+
+(defn add-theme-css-dirs 
+  [config theme-config]
+  (assoc config
+         :theme-resources
+         (or (:resources theme-config) [])
+         :theme-sass-src
+         (or (:sass-src theme-config) [])
+         :theme-post-css-src
+         (or (:post-css-src theme-config) [])))
+
 (defn read-config []
   (let [config (-> "content/config.edn"
                    cryogen-io/get-resource
@@ -64,11 +90,7 @@
                                   cryogen-io/get-resource)
         theme-config (if theme-config-resource
                        (cryogen-io/read-edn-resource theme-config-resource))]
-    (assoc config
-           :theme-resources
-           (or (:resources theme-config) [])
-           :theme-sass-src
-           (or (:sass-src theme-config) []))))
+    (add-theme-css-dirs config theme-config)))
 
 (defn resolve-config
   "Loads the config file, merging in the overrides and, and filling in missing defaults"

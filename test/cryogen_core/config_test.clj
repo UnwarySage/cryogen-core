@@ -20,7 +20,8 @@
    :recent-posts                 3
    :post-date-format             "yyyy-MM-dd"
    :archive-group-format         "yyyy MMMM"
-   :sass-src                     []
+   :css-compiler                 :sass
+   :css-src                      []
    :sass-path                    "sass"
    :theme                        "blue"
    :resources                    ["img"]
@@ -53,6 +54,29 @@
       (is (thrown? Exception (process-config (with-dest "themes"))))
       (is (thrown? Exception (process-config (with-dest "src"))))
       (is (thrown? Exception (process-config (with-dest "target")))))))
+
+(deftest test-sass-postcss-switch
+  (testing "config doesn't contains expected values before parsing"
+    (is (not (contains? default-config :sass-src)))
+    (is (not (contains? default-config :post-css-src)))
+    (is (contains? default-config :css-compiler)))
+  (testing "parsing with sass compiler sets up sass variables"
+    (is (contains? (process-config default-config) :sass-src))
+    (is (= (:sass-src (process-config default-config))
+           (:css-src (process-config default-config)))))
+  (testing "parsing with post-css compiler sets up post-css variables"
+    (let [default-config (assoc default-config :css-compiler :post-css)]
+      (is (contains? (process-config default-config) :post-css-src))
+      (is (= (:post-css-src (process-config default-config))
+             (:css-src (process-config default-config))))))
+  (testing "parsing with nil compiler doesn't setup anything"
+    (let [default-config (dissoc default-config :css-compiler)
+          processed-config (process-config default-config)]
+      (are [inp-keyword] (not (contains? processed-config inp-keyword))
+        :css-compiler
+        :sass-src
+        :post-css-src))))
+
 
 (deftest test-config-merging
   (let [config {:scalar "orig" :map {:k "orig" :submap {:k "suborig"}} :vec [:orig1 :orig2]}]
